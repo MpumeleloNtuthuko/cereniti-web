@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 250 20% 98%;
+    --foreground: 30 5% 10%;
+  }
+
+  body {
+    @apply bg-cereniti-50 text-cereniti-900 antialiased overflow-x-hidden;
+  }
+}
+
+/* The Luxury Grain Overlay */
+.bg-noise {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: url("https://grainy-gradients.vercel.app/noise.svg"); /* Reliable noise source */
+  opacity: 0.035; /* Subtle texture */
+  pointer-events: none;
+  z-index: 50;
+  mix-blend-mode: overlay;
+}
+
+/* Smooth Scrolling */
+html {
+  scroll-behavior: smooth;
+}
