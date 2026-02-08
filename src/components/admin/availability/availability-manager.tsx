@@ -15,6 +15,7 @@ export function AvailabilityManager({ allBlocks }: AvailabilityManagerProps) {
 
   // Helper: Get YYYY-MM-DD in local time
   const getLocalISODate = (d: Date) => {
+    // Basic YYYY-MM-DD format
     return d.toLocaleDateString('en-CA'); 
   };
 
@@ -24,7 +25,6 @@ export function AvailabilityManager({ allBlocks }: AvailabilityManagerProps) {
     : [];
 
   // Create array of Dates for the calendar modifiers (visual red blocks)
-  // We map the string dates back to Date objects for DayPicker
   const blockedDatesForCalendar = allBlocks.map(b => new Date(b.date));
 
   return (
@@ -33,9 +33,9 @@ export function AvailabilityManager({ allBlocks }: AvailabilityManagerProps) {
       {/* 1. CALENDAR UI */}
       <div className="p-4 border border-cereniti-100 rounded-xl bg-cereniti-50/50">
         <DayPicker
-          mode="default"
+          mode="single" // <--- FIX: Changed from 'default' to 'single'
           selected={selectedDate || undefined}
-          onDayClick={setSelectedDate}
+          onSelect={(d) => setSelectedDate(d || null)} // <--- FIX: Used onSelect to match 'single' mode
           disabled={{ before: new Date() }} // Can't edit past
           modifiers={{
             blocked: blockedDatesForCalendar
@@ -76,7 +76,7 @@ export function AvailabilityManager({ allBlocks }: AvailabilityManagerProps) {
             Live Synchronization
           </p>
           <p className="text-xs text-amber-700">
-            Adding a block here immediately removes the time slots from the Client Booking Engine.
+            Adding a block here immediately removes those time slots from the Client Booking Engine.
           </p>
         </div>
       </div>

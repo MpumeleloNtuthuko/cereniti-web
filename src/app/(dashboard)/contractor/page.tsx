@@ -19,12 +19,8 @@ export default async function ContractorDashboard() {
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
   if (profile?.role !== 'contractor') return <div className="p-12 text-center">Unauthorized</div>;
 
-  // --- DATE UTILS ---
-  const now = new Date();
-  now.setHours(0, 0, 0, 0); // Midnight today for comparison
-
   // ---------------------------------------------------------
-  // 2. FETCH OPPORTUNITIES
+  // 2. FETCH OPPORTUNITIES (Broadcasts -> Sent)
   // ---------------------------------------------------------
   const { data: broadcasts } = await supabase
     .from("job_broadcasts")
@@ -42,27 +38,28 @@ export default async function ContractorDashboard() {
     .eq("status", "sent")
     .order("sent_at", { ascending: false });
 
-  // FILTER 1: OPPORTUNITIES
-  // Remove if team full OR if date is in the past
+  // Filter opportunities logic
   const opportunities = broadcasts?.filter((item: any) => {
     const booking = item.booking;
     if (!booking) return false;
-
-    // A. Date Check (Hide expired opportunities)
+    
+    // Date Check (Don't show expired)
     const jobDate = new Date(booking.scheduled_date);
+    const now = new Date();
+    now.setHours(0,0,0,0);
     if (jobDate < now) return false;
 
-    // B. Team Check
+    // Team Check
     const acceptedCount = booking.broadcasts_log?.filter((b: any) => b.status === 'accepted').length || 0;
     const needed = booking.specialists_needed || 1;
     return acceptedCount < needed;
   }) || [];
 
   // ---------------------------------------------------------
-  // 3. FETCH SCHEDULE
+  // 3. FETCH SCHEDULE (HYBRID METHOD)
   // ---------------------------------------------------------
   
-  // A. Direct Assignments
+  // A. Fetch Direct Assignments (Legacy / Primary)
   const { data: directAssignments } = await supabase
     .from("bookings")
     .select(`
@@ -74,7 +71,7 @@ export default async function ContractorDashboard() {
     .eq("assigned_contractor_id", user.id)
     .neq("status", "cancelled");
 
-  // B. Team Assignments
+  // B. Fetch Team Assignments (Broadcast Accepted)
   const { data: teamAssignments } = await supabase
     .from("job_broadcasts")
     .select(`
@@ -88,24 +85,31 @@ export default async function ContractorDashboard() {
     .eq("contractor_id", user.id)
     .eq("status", "accepted");
 
-  // C. Merge
+  // C. Merge & Deduplicate
   const directJobs = directAssignments || [];
-  // @ts-ignore
-  const teamJobs = teamAssignments?.map(t => t.booking).filter(b => b.status !== 'cancelled') || [];
   
+  // FIX: Robust mapping to handle Array vs Object responses from Supabase relations
+  const teamJobs = teamAssignments?.map((t: any) => {
+      // Check if booking is returned as an array or object
+      return Array.isArray(t.booking) ? t.booking[0] : t.booking;
+  }).filter((b: any) => b && b.status !== 'cancelled') || [];
+  
+  // Use a Map to remove duplicates by ID
   const jobMap = new Map();
-  directJobs.forEach(job => jobMap.set(job.id, job));
-  teamJobs.forEach(job => jobMap.set(job.id, job));
   
-  const allJobs = Array.from(jobMap.values());
+  directJobs.forEach((job: any) => jobMap.set(job.id, job));
+  // FIX: Added type 'any' to job in loop to prevent build error
+  teamJobs.forEach((job: any) => {
+    if (job && job.id) jobMap.set(job.id, job);
+  });
+  
+  const now = new Date();
+  now.setHours(0,0,0,0);
 
-  // FILTER 2: SCHEDULE
-  // Only show Future jobs OR jobs that are currently In Progress
-  const schedule = allJobs
+  const schedule = Array.from(jobMap.values())
     .filter((job: any) => {
-      const jobDate = new Date(job.scheduled_date);
-      // Keep if (Date >= Today) OR (Status is 'in_progress')
-      return jobDate >= now || job.status === 'in_progress';
+       const jobDate = new Date(job.scheduled_date);
+       return jobDate >= now || job.status === 'in_progress';
     })
     .sort((a: any, b: any) => new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime());
 
@@ -122,7 +126,7 @@ export default async function ContractorDashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* LEFT: OPPORTUNITIES */}
+          {/* LEFT: JOB FEED */}
           <div className="lg:col-span-8 space-y-6">
             <div className="flex items-center gap-2 mb-4">
                <div className="h-8 w-8 rounded-full bg-gold-100 flex items-center justify-center text-gold-600"><Bell className="h-4 w-4" /></div>
@@ -143,7 +147,7 @@ export default async function ContractorDashboard() {
             )}
           </div>
 
-          {/* RIGHT: SCHEDULE */}
+          {/* RIGHT: UPCOMING SCHEDULE */}
           <div className="lg:col-span-4">
             <div className="bg-white border border-cereniti-200 rounded-xl p-6 shadow-sm sticky top-32">
               <h3 className="font-bold text-cereniti-900 mb-4 flex items-center gap-2"><Calendar className="h-4 w-4" /> My Schedule</h3>
@@ -152,7 +156,6 @@ export default async function ContractorDashboard() {
                 {schedule.length > 0 ? (
                   schedule.map((job: any) => {
                     const jobDate = new Date(job.scheduled_date);
-                    // Check if Locked (Future date)
                     const isFuture = jobDate > now && job.status !== 'in_progress';
                     const startTime = job.start_time ? job.start_time.slice(0, 5) : "TBD";
 
@@ -189,6 +192,7 @@ export default async function ContractorDashboard() {
                           <MapPin className="h-3 w-3" />
                           <span className="uppercase tracking-wider">{job.property?.estate_name || "Paarl"}</span>
                         </div>
+                        <p className="text-[10px] text-cereniti-400 ml-4 truncate">{job.property?.address}</p>
                       </div>
                     )
                   })

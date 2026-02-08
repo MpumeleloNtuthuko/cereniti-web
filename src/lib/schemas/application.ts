@@ -66,9 +66,7 @@ export const applicationSchema = z.object({
     .refine(validateSize, "Max file size is 5MB.")
     .refine(validateType, "Only PDF, JPG, or PNG allowed."),
 
-  termsAccepted: z.literal(true, {
-    errorMap: () => ({ message: "You must accept the terms." }),
-  }),
+termsAccepted: z.boolean().refine((val) => val === true, "You must accept the terms."),
 });
 
 export type ApplicationFormValues = z.infer<typeof applicationSchema>;

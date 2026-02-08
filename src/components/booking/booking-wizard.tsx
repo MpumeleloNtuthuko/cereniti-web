@@ -63,18 +63,11 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
     trigger,
     setValue,
     formState: { errors } 
-  } = useForm<BookingFormValues>({
+  } = useForm({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
-      bedrooms: 1, 
-      bathrooms: 1, 
-      livingAreas: 1, // FIX: Default is now 1 (Included in base)
-      sqm: 0, 
-      isHighCare: false,
-      addonIds: [], 
-      frequency: "once-off", 
-      scheduledDate: undefined, 
-      startTime: undefined
+      bedrooms: 1, bathrooms: 1, livingAreas: 0, sqm: 0, isHighCare: false,
+      addonIds: [], frequency: "once-off", scheduledDate: undefined, startTime: undefined
     },
     mode: "onChange"
   });
@@ -103,7 +96,8 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
       livingAreas: watchedLiving,
       sqm: watchedSqm,
       condition: selectedCondition,
-      isHighCare: watchedHighCare,
+      // FIX: Ensure boolean fallback
+      isHighCare: watchedHighCare || false, 
       service: selectedService,
       selectedAddons: selectedAddons
     });
@@ -117,7 +111,8 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
       bathrooms: watchedBaths,
       livingAreas: watchedLiving,
       sqm: watchedSqm,
-      isHighCare: watchedHighCare
+      // FIX: Ensure boolean fallback here too
+      isHighCare: watchedHighCare || false
     });
   }, [selectedService, watchedBeds, watchedBaths, watchedLiving, watchedSqm, watchedHighCare]);
 
@@ -194,7 +189,7 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
     });
   };
 
-  const onSubmit = async (data: BookingFormValues) => {
+  const onSubmit = async (data: any) => {
     setIsSubmitting(true);
     
     if (!data.scheduledDate || !data.startTime) {
@@ -207,7 +202,6 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
     Object.entries(data).forEach(([key, value]) => {
       if (key === 'addonIds') formData.append(key, JSON.stringify(value));
       else if (value instanceof Date) {
-         // Timezone Fix
          const offset = value.getTimezoneOffset();
          const localAdjustedDate = new Date(value.getTime() - (offset * 60000));
          formData.append(key, localAdjustedDate.toISOString().split('T')[0]); 
@@ -218,34 +212,22 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
     try {
         const result = await createBooking(null, formData);
         
-        // 1. PAYMENT REDIRECT LOGIC
         if (result.success && result.paymentUrl) {
-          toast.success("Initializing Secure Payment...", { description: "Redirecting to Paystack gateway." });
-          // Redirect the browser to Paystack
-          window.location.href = result.paymentUrl;
-        } 
-        // 2. STANDARD SUCCESS (If payment logic skipped or not required)
-        else if (result.success) {
-          setCurrentStep(Step.SUCCESS);
-        } 
-        // 3. ERROR HANDLING
-        else {
-          if (result.errors) {
-             const errorMessages = Object.entries(result.errors)
-                .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs[0] : msgs}`)
-                .join(", ");
-             toast.error("Validation Failed", { description: errorMessages });
-          } else {
-             toast.error("System Error", { description: result.message || "An unknown error occurred." });
-          }
+           toast.success("Initiating Secure Payment...", { description: "Redirecting to Paystack gateway." });
+           window.location.href = result.paymentUrl;
+        } else if (result.success) {
+           setCurrentStep(Step.SUCCESS);
+        } else {
+           if (result.errors) {
+              const errorMessages = Object.entries(result.errors).map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs[0] : msgs}`).join(", ");
+              toast.error("Validation Failed", { description: errorMessages });
+           } else {
+              toast.error("System Error", { description: result.message || "An unknown error occurred." });
+           }
         }
     } catch (e) {
-        console.error(e);
-        toast.error("Network Error", { description: "Please check your connection and try again." });
+        toast.error("Network Error");
     } finally {
-        // If we are redirecting, we generally keep submitting state true to prevent double clicks
-        // But if error, we reset.
-        // We can safely reset here because window.location.href usually blocks further interaction anyway.
         setIsSubmitting(false);
     }
   };
@@ -285,15 +267,7 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
 
                {selectedService && watchedBeds > 1 && <div className="flex justify-between"><span>+ {watchedBeds-1} Extra Bedroom{watchedBeds-1 > 1 ? 's' : ''}</span><span>{formatCurrency((watchedBeds - 1) * selectedService.price_per_bed)}</span></div>}
                {selectedService && watchedBaths > 1 && <div className="flex justify-between"><span>+ {watchedBaths-1} Extra Bathroom{watchedBaths-1 > 1 ? 's' : ''}</span><span>{formatCurrency((watchedBaths - 1) * selectedService.price_per_bath)}</span></div>}
-               
-               {/* FIX: Only show EXTRA living areas (watchedLiving - 1) */}
-               {selectedService && watchedLiving > 1 && (
-                 <div className="flex justify-between">
-                    <span>+ {watchedLiving - 1} Extra Living Area{watchedLiving - 1 > 1 ? 's' : ''}</span>
-                    <span>{formatCurrency((watchedLiving - 1) * selectedService.price_per_living)}</span>
-                 </div>
-               )}
-               
+               {selectedService && watchedLiving > 1 && <div className="flex justify-between"><span>+ {watchedLiving - 1} Extra Living Area{watchedLiving - 1 > 1 ? 's' : ''}</span><span>{formatCurrency((watchedLiving - 1) * selectedService.price_per_living)}</span></div>}
                {selectedService && watchedSqm > 0 && <div className="flex justify-between"><span>Surface ({watchedSqm}m²)</span><span>{formatCurrency(watchedSqm * selectedService.price_per_sqm)}</span></div>}
                
                {selectedCondition && selectedCondition.value > 1 && <div className="flex justify-between text-gold-500 pt-2"><span>Cond: {selectedCondition.label}</span><span>x{selectedCondition.value}</span></div>}
@@ -301,13 +275,9 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
                {selectedAddons.length > 0 && (
                  <div className="border-t border-cereniti-800 mt-2 pt-2">
                    {selectedAddons.map(a => {
-                     // Check tier for price display
                      const price = selectedService?.tier === 'classic' ? (a.price_classic || a.price) : a.price;
                      return (
-                        <div key={a.id} className="flex justify-between text-gold-300">
-                           <span>+ {a.title}</span>
-                           <span>{formatCurrency(price)}</span>
-                        </div>
+                        <div key={a.id} className="flex justify-between text-gold-300"><span>+ {a.title}</span><span>{formatCurrency(price)}</span></div>
                      )
                    })}
                  </div>
@@ -354,28 +324,16 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
                     </div>
                  </motion.div>
                )}
-
+               
                {/* STEP 2: DETAILS */}
                {currentStep === Step.DETAILS && (
                  <motion.div key="st2" initial={{opacity:0, x:20}} animate={{opacity:1, x:0}} exit={{opacity:0, x:-20}} className="space-y-8">
                     <StepHeader title="Composition & Condition" subtitle="Details that define the scope of work." />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                           <label className="text-xs uppercase text-cereniti-500">Living & Dining Areas</label>
-                           {/* FIX: Default 1, Min 1 */}
-                           <Counter label="Lounges / Dining" name="livingAreas" control={control} min={1} />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs uppercase text-cereniti-500">Property Size</label>
-                            <div className="flex items-center border border-cereniti-200 rounded-lg bg-cereniti-50/30 p-4 h-[74px]"> 
-                                <div className="mr-3 text-cereniti-400"><Ruler className="h-5 w-5" /></div>
-                                <input type="number" {...register("sqm", { valueAsNumber: true })} className="w-full bg-transparent font-bold text-cereniti-900 text-lg focus:outline-none placeholder:text-cereniti-300" placeholder="120" />
-                                <span className="text-xs font-bold text-cereniti-400 ml-2">m²</span>
-                            </div>
-                        </div>
+                        <div className="space-y-2"><label className="text-xs uppercase text-cereniti-500">Living & Dining Areas</label><Counter label="Lounges / Dining" name="livingAreas" control={control} min={1} /></div>
+                        <div className="space-y-2"><label className="text-xs uppercase text-cereniti-500">Property Size</label><div className="flex items-center border border-cereniti-200 rounded-lg bg-cereniti-50/30 p-4 h-[74px]"><div className="mr-3 text-cereniti-400"><Ruler className="h-5 w-5" /></div><input type="number" {...register("sqm", { valueAsNumber: true })} className="w-full bg-transparent font-bold text-cereniti-900 text-lg focus:outline-none placeholder:text-cereniti-300" placeholder="120" /><span className="text-xs font-bold text-cereniti-400 ml-2">m²</span></div></div>
                     </div>
-                    {/* ... rest of step 2 ... */}
-                    <div className="space-y-3"><label className="text-xs uppercase text-cereniti-500">Current Condition</label><div className="grid grid-cols-1 gap-3"><Controller name="conditionId" control={control} render={({ field }) => (<>{conditions.map(c => (<div key={c.id} onClick={() => field.onChange(c.id)} className={cn("cursor-pointer border rounded-lg p-3 flex justify-between items-center hover:bg-cereniti-50", field.value === c.id ? "border-cereniti-900 bg-cereniti-50 ring-1 ring-cereniti-900" : "border-cereniti-200")}><div><p className="text-sm font-medium">{c.label}</p><p className="text-xs text-cereniti-500">{c.description}</p></div>{field.value === c.id && <Check className="h-4 w-4" />}</div>))}</>)} /></div></div>
+                    <div className="space-y-3"><label className="text-xs uppercase text-cereniti-500">Current Condition (Required)</label><div className="grid grid-cols-1 gap-3"><Controller name="conditionId" control={control} render={({ field }) => (<>{conditions.map(c => (<div key={c.id} onClick={() => field.onChange(c.id)} className={cn("cursor-pointer border rounded-lg p-3 flex justify-between items-center hover:bg-cereniti-50", field.value === c.id ? "border-cereniti-900 bg-cereniti-50 ring-1 ring-cereniti-900" : "border-cereniti-200")}><div><p className="text-sm font-medium">{c.label}</p><p className="text-xs text-cereniti-500">{c.description}</p></div>{field.value === c.id && <Check className="h-4 w-4" />}</div>))}</>)} /></div></div>
                     <div className="space-y-3 pt-2"><Controller name="isHighCare" control={control} render={({ field }) => (<div onClick={() => field.onChange(!field.value)} className={cn("cursor-pointer border rounded-lg p-4 flex gap-4 items-center", field.value ? "border-gold-500 bg-gold-50 ring-1 ring-gold-500" : "border-cereniti-200")}><div className={cn("h-10 w-10 rounded-full flex center shrink-0", field.value ? "bg-gold-600 text-white" : "bg-cereniti-100 text-cereniti-400")}><Gem className="h-5 w-5" /></div><div><h4 className="font-medium text-sm">Luxury Finishes Protocol</h4><p className="text-xs text-cereniti-500">Marble, stone, or raw wood requiring pH-neutral chemistry.</p></div></div>)} /></div>
                  </motion.div>
                )}
@@ -392,8 +350,10 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
                {currentStep === Step.ADDONS && (
                  <motion.div key="st4" initial={{opacity:0, x:20}} animate={{opacity:1, x:0}} exit={{opacity:0, x:-20}} className="space-y-6">
                     <StepHeader title="Refinements" subtitle="Specific focus areas." />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Controller name="addonIds" control={control} render={({ field }) => (<>{addons.map(a => { const Icon = ICON_MAP[a.icon_name] || PlusCircle; const isSelected = field.value?.includes(a.id); 
-                      // Dynamic Price display
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Controller name="addonIds" control={control} render={({ field }) => (<>{addons.map(a => { 
+                      const Icon = ICON_MAP[a.icon_name] || PlusCircle; 
+                      const isSelected = field.value?.includes(a.id); 
+                      // Dynamic Price Logic for Classic/Reserve
                       const price = selectedService?.tier === 'classic' ? (a.price_classic || a.price) : a.price;
                       return (<div key={a.id} onClick={() => { const cur = field.value || []; field.onChange(isSelected ? cur.filter((id:string)=>id!==a.id) : [...cur, a.id]); }} className={cn("cursor-pointer rounded-xl border p-4 flex gap-4 items-center", isSelected ? "border-gold-500 bg-gold-50 ring-1" : "border-cereniti-200")}><div className={cn("p-2 rounded-full shrink-0", isSelected ? "bg-gold-100 text-gold-700" : "bg-cereniti-100 text-cereniti-500")}><Icon className="h-5 w-5"/></div><div><h4 className="font-medium text-sm">{a.title}</h4><p className="text-xs font-bold mt-0.5">+{formatCurrency(price)}</p></div></div>); })}</>)} /></div>
                  </motion.div>
@@ -415,14 +375,18 @@ export function BookingWizard({ services, addons, conditions, perks, blockedDate
                {currentStep === Step.DATE && (
                  <motion.div key="st6" initial={{opacity:0, x:20}} animate={{opacity:1, x:0}} exit={{opacity:0, x:-20}} className="space-y-8">
                     <StepHeader title="Commitment & Timing" subtitle="Schedule your reset." />
+                    
                     <div className="flex justify-center mb-2"><div className="inline-flex items-center gap-2 px-4 py-2 bg-cereniti-100 rounded-full text-cereniti-700 text-xs font-bold uppercase tracking-wider border border-cereniti-200"><Hourglass className="h-3 w-3 text-gold-600" /> Est Duration: {formatDuration(estimatedDuration)}</div></div>
+                    
                     <div className="space-y-2"><label className="text-xs uppercase text-cereniti-500">Frequency</label><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Controller name="frequency" control={control} render={({ field }) => (<>{["once-off", "weekly", "bi-weekly", "monthly"].map(opt => (<div key={opt} onClick={() => field.onChange(opt)} className={cn("cursor-pointer border p-4 rounded-xl capitalize flex items-center gap-3", field.value===opt ? "border-cereniti-900 bg-cereniti-50 ring-1" : "border-cereniti-200 hover:border-cereniti-300")}>{opt === "once-off" ? <div className="h-10 w-10 rounded-full bg-cereniti-100 flex items-center justify-center shrink-0"><CalIcon className="h-5 w-5"/></div> : opt === "weekly" ? <div className="h-10 w-10 rounded-full bg-cereniti-100 flex items-center justify-center shrink-0"><InfinityIcon className="h-5 w-5"/></div> : opt === "bi-weekly" ? <div className="h-10 w-10 rounded-full bg-cereniti-100 flex items-center justify-center shrink-0"><Repeat className="h-5 w-5"/></div> : <div className="h-10 w-10 rounded-full bg-cereniti-100 flex items-center justify-center shrink-0"><CalendarDays className="h-5 w-5"/></div>}<span>{opt.replace("-", " ")} {opt !== "once-off" && "Contract"}</span></div>))}</>)} /></div></div>
+                    
                     <div className="flex flex-col gap-6">
                       <div className="flex justify-center border border-cereniti-100 rounded-xl p-4 md:p-6 bg-cereniti-50/50 overflow-x-auto">
                          <Controller name="scheduledDate" control={control} render={({ field }) => (
                             <DayPicker mode="single" required selected={field.value} onSelect={field.onChange} disabled={[{ before: new Date() }, ...blockedDates]} modifiers={{ blocked: blockedDates }} modifiersStyles={{ blocked: { textDecoration: 'line-through', opacity: 0.5, color: '#ef4444' } }} styles={{ head_cell: { width: "40px", color: "#8C8680" }, day_selected: { backgroundColor: "#1C1B1A", color: "white" } }} />
                          )} />
                       </div>
+                      
                       {watchedDate && (
                         <div className="space-y-3 animate-in fade-in slide-in-from-top-4">
                           <label className="text-xs uppercase tracking-widest text-cereniti-500 font-bold">Start Time</label>

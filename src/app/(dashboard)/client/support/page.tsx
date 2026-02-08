@@ -2,20 +2,27 @@ import { createClient } from "@/lib/supabase/server";
 import { SupportForm } from "@/components/client/support-form";
 import { redirect } from "next/navigation";
 
-// FIX: Must be 'export default' for Next.js Pages
 export default async function SupportPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
 
-  // Fetch active bookings to link complaint to
-  const { data: bookings } = await supabase
+  // 1. Fetch raw data
+  const { data: rawBookings } = await supabase
     .from("bookings")
     .select("id, scheduled_date, service:services(title)")
     .eq("user_id", user.id)
     .order("scheduled_date", { ascending: false })
     .limit(5);
+
+  // 2. Transform data to match Component Props (Fixes the Build Error)
+  const formattedBookings = rawBookings?.map((b: any) => ({
+    id: b.id,
+    scheduled_date: b.scheduled_date,
+    // Check if service is an array (common Supabase quirk) and grab the first item
+    service: Array.isArray(b.service) ? b.service[0] : b.service
+  })) || [];
 
   return (
     <div className="max-w-3xl">
@@ -28,7 +35,8 @@ export default async function SupportPage() {
 
       {/* Main Card */}
       <div className="bg-white border border-cereniti-200 rounded-xl p-8 shadow-sm">
-         <SupportForm bookings={bookings || []} />
+         {/* Pass the formatted data */}
+         <SupportForm bookings={formattedBookings} />
       </div>
 
       {/* Support Info Footer */}

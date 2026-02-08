@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { LoginForm } from "@/components/auth/login-form"; // We'll create this next
+import { LoginForm } from "@/components/auth/login-form";
 import { ArrowLeft } from "lucide-react";
+import { Suspense } from "react"; // 1. Import Suspense
 
 export default function LoginPage() {
   return (
@@ -41,7 +42,15 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <LoginForm />
+          {/* 2. Wrap LoginForm in Suspense */}
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-cereniti-200 border-t-cereniti-900" />
+            </div>
+          }>
+            <LoginForm />
+          </Suspense>
+          
         </div>
       </div>
     </div>

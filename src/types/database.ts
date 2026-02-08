@@ -3,6 +3,7 @@ export type Service = {
   title: string;
   tier: 'classic' | 'reserve';
   description: string;
+  ideal_for: string;   
   price_label: string;
   base_price: number;
   price_per_bed: number;
@@ -14,6 +15,8 @@ export type Service = {
   duration_per_bath: number;
   condition_multiplier_cap: number;
   has_concierge_benefits: boolean;
+  is_active?: boolean;
+  display_order?: number;
 };
 
 export type PropertyCondition = {

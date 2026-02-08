@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { Badge } from "@/components/ui/button"; // Optional: if you have a badge component, else use span
+// Fix: Removed the invalid { Badge } import
 import { Eye, FileText, CheckCircle, XCircle } from "lucide-react";
 
 export default async function ApplicationsPage() {

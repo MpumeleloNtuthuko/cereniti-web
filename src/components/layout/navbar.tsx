@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Variants } from "framer-motion";
 import { User } from "@supabase/supabase-js";
 import { User as UserIcon, LayoutDashboard, Briefcase, LogOut, Menu, X, ArrowRight } from "lucide-react";
 import { signout } from "@/features/auth/actions";
@@ -18,24 +18,24 @@ interface NavbarProps {
 }
 
 // --- ANIMATION VARIANTS (Luxury Ease) ---
-const sidebarVariants = {
+const sidebarVariants: Variants = { // Added explicit type here
   closed: { 
     x: "100%",
     transition: { 
       duration: 0.4, 
-      ease: [0.32, 0.72, 0, 1] // Custom "Quint" ease for premium feel
+      ease: [0.32, 0.72, 0, 1] as const // Added 'as const'
     }
   },
   open: { 
-    x: 0,
+    x: "0%", // Changed 0 to "0%" to match the string type of "100%"
     transition: { 
       duration: 0.5, 
-      ease: [0.32, 0.72, 0, 1]
+      ease: [0.32, 0.72, 0, 1] as const // Added 'as const'
     }
   }
 };
 
-const overlayVariants = {
+const overlayVariants: Variants = {
   closed: { 
     opacity: 0,
     transition: { duration: 0.3 }
@@ -46,7 +46,7 @@ const overlayVariants = {
   }
 };
 
-const contentVariants = {
+const contentVariants: Variants = {
   closed: { 
     opacity: 0,
     transition: { duration: 0.2 }
@@ -61,12 +61,12 @@ const contentVariants = {
   }
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   closed: { opacity: 0, x: 20 },
   open: { 
     opacity: 1, 
     x: 0,
-    transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1] }
+    transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1] as const }
   }
 };
 
