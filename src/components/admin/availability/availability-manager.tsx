@@ -76,7 +76,7 @@ export function AvailabilityManager({ allBlocks }: AvailabilityManagerProps) {
             Live Synchronization
           </p>
           <p className="text-xs text-amber-700">
-            Adding a block here immediately removes those time slots from the Client Booking Engine.
+            Adding a block here immediately removes the time slots from the Client Booking Engine.
           </p>
         </div>
       </div>
